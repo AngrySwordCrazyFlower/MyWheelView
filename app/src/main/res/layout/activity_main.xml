@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -7,11 +7,21 @@
     tools:context="com.example.crazyflower.mywheelview.MainActivity">
 
     <com.example.crazyflower.mywheelview.MyWheelView
-        android:layout_width="0dp"
-        android:layout_weight="1"
+        android:id="@+id/test_wheelview"
+        android:layout_width="match_parent"
         android:layout_height="200dp"
-        android:background="#50cccccc"/>
+        app:item_number="5"
+        app:selected_background_color="#EEEEEE"
+        app:selected_line_color="#EEEEEE"
+        app:selected_text_color="#CC007FCC" />
 
 
+    <TextView
+        android:id="@+id/selected_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:textSize="32sp"/>
 
-</LinearLayout>
+</RelativeLayout>

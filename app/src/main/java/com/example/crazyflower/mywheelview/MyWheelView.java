@@ -1,8 +1,11 @@
 package com.example.crazyflower.mywheelview;
 
 import android.content.Context;
+import android.content.res.TypedArray;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.util.AttributeSet;
@@ -10,10 +13,9 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
-import java.util.ArrayList;
+import java.lang.ref.WeakReference;
 import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
+
 
 /**
  * Created by CrazyFlower on 2018/4/2.
@@ -23,31 +25,36 @@ public class MyWheelView extends View {
 
     private static final String TAG = "MyWheelView";
 
+    private static final String RESILIENCE_DISTANCE_OF_ONCE = "resilience_distance_of_once";
+    private static final String RESILIENCE_LEFT_TIMES = "left_times";
+
+    private static final int RESILIENCE_TIMES = 5;
+    private static final int RESILIENCE_TIME_INTERVAL = 50;
+
     private List<String> data;
+    private int selectedItemIndex = 0;
 
-    private float lastY = 0;
-    private float scrollY = 0;
+    private float lastY;
+    private float scrollY;
 
-    private int viewWidth = 0;
-    private int viewHeight = 0;
-    private int itemHeight = 0;
+    private int viewWidth;
+    private int viewHeight;
+    private float itemHeight;
+    private int itemNumber;
+    private int halfItemNumber;
+    private static final float maxScaleTextSizeToItemHeight = 0.9f;
+    private static final float minScaleTextSizeToItemHeight = 0.72f;
+    private float maxTextSize;
+    private float minTextSize;
 
-    private boolean isTouch = false;
+    private IWheelViewSelectedListener wheelViewSelectedListener;
 
-    private int currentItemIndex = 0;
+    Paint selectedLinePaint;
+    Paint selectedBackgroundPaint;
+    Paint normalTextPaint;
+    Paint selectedTextPaint;
 
-    Paint linePaint;
-    Paint textPaint;
-
-    private Handler handler = new Handler() {
-
-        @Override
-        public void handleMessage(Message msg) {
-            invalidate();
-        }
-    };
-
-    private Timer timer = new Timer();
+    private Handler handler;
 
     public MyWheelView(Context context) {
         this(context, null);
@@ -59,200 +66,247 @@ public class MyWheelView extends View {
 
     public MyWheelView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        initDataAndPaint();
+        TypedArray typedArray = context.obtainStyledAttributes(attrs, R.styleable.MyWheelView);
+        initAttributesData(typedArray);
+        initDefaultData();
     }
 
-    private void initDataAndPaint() {
-        Log.d(TAG, "initData: ");
-        data = new ArrayList<>();
-        data.add("1");
-        data.add("2");
-        data.add("3");
-        data.add("4");
-        data.add("这个5555比较长");
-        data.add("6");
-        data.add("7");
-        data.add("8");
-        currentItemIndex = 0;
+    private void initAttributesData(TypedArray typedArray) {
+        Log.d(TAG, "initDataAndPaint: ");
 
-        linePaint = new Paint();
-        textPaint = new Paint();
-        linePaint.setColor(0xffcccccc);
-        linePaint.setStyle(Paint.Style.FILL_AND_STROKE);
-        linePaint.setStrokeWidth(4);
+        itemNumber = typedArray.getInt(R.styleable.MyWheelView_item_number, 5);
+        halfItemNumber = itemNumber / 2;
+
+        selectedLinePaint = new Paint();
+        selectedBackgroundPaint = new Paint();
+        normalTextPaint = new Paint();
+        selectedTextPaint = new Paint();
+
+        selectedLinePaint.setColor(typedArray.getColor(R.styleable.MyWheelView_selected_line_color, Color.rgb(0, 0, 0)));
+        selectedBackgroundPaint.setColor(typedArray.getColor(R.styleable.MyWheelView_selected_background_color, Color.rgb(255, 255, 255)));
+        normalTextPaint.setColor(typedArray.getColor(R.styleable.MyWheelView_normal_text_color, Color.rgb(0, 0, 0)));
+        selectedTextPaint.setColor(typedArray.getColor(R.styleable.MyWheelView_selected_text_color, Color.rgb(0, 255, 204)));
+
+        selectedLinePaint.setStyle(Paint.Style.FILL_AND_STROKE);
+        selectedLinePaint.setStrokeWidth(4);
+        selectedBackgroundPaint.setStyle(Paint.Style.FILL);
+    }
+
+    /*
+     * 初始化宽高有关的数据
+     */
+    private void initWHData() {
+        viewWidth = getMeasuredWidth();
+        viewHeight = getMeasuredHeight();
+        itemHeight = ((float) viewHeight) / itemNumber;
+        maxTextSize = maxScaleTextSizeToItemHeight * itemHeight;
+        minTextSize = minScaleTextSizeToItemHeight * itemHeight;
+    }
+
+    private void initDefaultData() {
+        //默认选中为0，实际上setData的时候也会初始化selectedItemIndex
+        selectedItemIndex = 0;
+
+        handler = new MyWheelViewHandler(this);
     }
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-
-        int widthMode = MeasureSpec.getMode(widthMeasureSpec);
-        int heightMode = MeasureSpec.getMode(heightMeasureSpec);
-
-        int width = 0;
-        int height = 0;
-
-        switch (widthMode) {
-            case MeasureSpec.EXACTLY:
-                width = MeasureSpec.getSize(widthMeasureSpec);
-                break;
-            case MeasureSpec.AT_MOST:
-                width = 100;
-                break;
-            case MeasureSpec.UNSPECIFIED:
-                width = 100;
-                break;
-        }
-
-        switch (heightMode) {
-            case MeasureSpec.EXACTLY:
-                height = MeasureSpec.getSize(heightMeasureSpec);
-                break;
-            case MeasureSpec.AT_MOST:
-                height = 100;
-                break;
-            case MeasureSpec.UNSPECIFIED:
-                height = 100;
-                break;
-        }
-
-        viewWidth = width;
-        viewHeight = height;
-        itemHeight = height / 5;
-
-        setMeasuredDimension(width, height);
+        initWHData();
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        if (null == data) {
+        Log.d(TAG, "onDraw: " + selectedItemIndex);
+
+        //如果没有数据或者数据量为0，不绘制
+        if (null == data || 0 == data.size()) {
             return;
         }
 
-        String text = "";
-        float topY = 0;
+        drawSelectedRectangle(canvas);
 
-        for (int i = 0, length = data.size(); i < length; i++) {
-            topY = (i - currentItemIndex + 2) * itemHeight + scrollY;
+        /*
+         * draw the text
+         * think about the effect, draw the selected, and (halfItemNumber + 1) items above it,
+         * and (halfItemNumber + 1) items below it.
+         */
+        String text;
+        Paint paint;
+        float midY;
+        for (int i = Math.max(0, selectedItemIndex - (halfItemNumber + 1)),
+             max = Math.min(data.size() - 1, selectedItemIndex + (halfItemNumber + 1));
+             i <= max; i++) {
             text = data.get(i);
-            setTextPaint(topY - viewHeight * 2 / 5);
-            canvas.drawText(text, getMidText(textPaint, text, viewWidth), getBaseLine(textPaint, topY, itemHeight), textPaint);
-        }
 
-        for (int count = 2; count < 4; count++) {
-            canvas.drawLine(0, itemHeight * count, viewWidth, itemHeight * count, linePaint);
-        }
+            midY = itemHeight * (halfItemNumber - (selectedItemIndex - i)) + itemHeight / 2 - scrollY;
+            if (i == selectedItemIndex)
+                paint = selectedTextPaint;
+            else
+                paint = normalTextPaint;
 
+            setTextPaint(paint, midY);
+
+            canvas.drawText(text, (viewWidth - getTextWidth(paint, text)) / 2,
+                    midY + getTextBaselineToCenter(paint), paint);
+        }
+    }
+
+    //绘制选中item的背景和线条
+    private void drawSelectedRectangle(Canvas canvas) {
+        canvas.drawLine(0, itemHeight * halfItemNumber, viewWidth, itemHeight * halfItemNumber, selectedLinePaint);
+        canvas.drawLine(0, itemHeight * (halfItemNumber + 1), viewWidth, itemHeight * (halfItemNumber + 1), selectedLinePaint);
+        canvas.drawRect(0, itemHeight * halfItemNumber, viewWidth, itemHeight * (halfItemNumber + 1), selectedBackgroundPaint);
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        Log.d(TAG, "onTouchEvent: " + event.getAction() + " " + event.getY());
+        Message message;
+        Bundle bundle;
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                isTouch = true;
+                handler.removeMessages(MyWheelViewHandler.RESILIENCE);
                 lastY = event.getY();
-                invalidate();
-                break;
+                return true;
             case MotionEvent.ACTION_MOVE:
-                scrollY = scrollY + event.getY() - lastY;
+                scrollY -= event.getY() - lastY;
                 lastY = event.getY();
-                confirmCurrentItem(1);
-                break;
+                confirmSelectedItem();
+                return true;
             case MotionEvent.ACTION_UP:
-                scrollY = scrollY + event.getY() - lastY;
-                lastY = 0;
-                isTouch = false;
-                confirmCurrentItem(2);
-                break;
+                message = handler.obtainMessage();
+                message.what = MyWheelViewHandler.RESILIENCE;
+                bundle = new Bundle();
+                bundle.putFloat(RESILIENCE_DISTANCE_OF_ONCE, scrollY / RESILIENCE_TIMES);
+                bundle.putInt(RESILIENCE_LEFT_TIMES, RESILIENCE_TIMES);
+                message.setData(bundle);
+                message.sendToTarget();
+                return true;
         }
-        return true;
-    }
-
-
-    /**
-     * @return 该字串在width下 中间对齐中间的x
-     */
-    private float getMidText(Paint paint, String text, float width) {
-        float fontWidth = paint.measureText(text);
-        return (width - fontWidth) / 2;
+        return false;
     }
 
     /**
-     * @return 该字串在itemheight下 中间对齐中间的y 该函数copy by https://blog.csdn.net/junzia/article/details/50979382
+     * @return 该字串在width下 字串中间对齐控件中间时候的 drawText用的x
      */
-    private float getBaseLine(Paint paint, float top, float height) {
+    private float getTextWidth(Paint paint, String text) {
+        return paint.measureText(text);
+    }
+
+    /**
+     * @return 该字串在itemHeight下 字串中间对齐控件中间的baseLine的y
+     */
+    private float getTextBaselineToCenter(Paint paint) {
         Paint.FontMetricsInt fontMetrics = paint.getFontMetricsInt();
-        return  (2*top+height - fontMetrics.bottom - fontMetrics.top) / 2;
+        return ((float) (- fontMetrics.bottom - fontMetrics.top)) / 2;
     }
 
-    private void confirmCurrentItem(int level) {
-        timer.cancel();
-        float topY = 0;
-        float min = 0x10000000;
-        int index = 0;
-        for (int i = 0, length = data.size(); i < length; i++) {
-            topY = (i - currentItemIndex + 2) * itemHeight + scrollY;
-            if (Math.abs((topY + itemHeight / 2) - viewHeight / 2) < Math.abs(min)) {
-                min = (topY + itemHeight / 2) - viewHeight / 2;
-                index = i;
-            }
-        }
-        scrollY -=itemHeight * (currentItemIndex - index);
-        currentItemIndex = index;
-        if (level == 1) {
-            invalidate();
-            return;
-        }
+    private void confirmSelectedItem() {
+        //计算移动了几个item的height了, < 0说明向上， >0说明向下
+        int changedItemNumber = Math.round(scrollY / itemHeight);
 
-        final float finalMin = min;
-
-        TimerTask task = new TimerTask() {
-            int times = 0;
-            float reduceDistance = finalMin / 5;
-
-            @Override
-            public void run() {
-                times++;
-                if (times == 6)  {
-                    scrollY = 0;
-                    super.cancel();
-                    return;
-                }
-                scrollY -= reduceDistance;
-                Log.d(TAG, "run: " + times);
-                handler.sendEmptyMessage(0);
-            }
-        };
-        timer = new Timer();
-        timer.schedule(task, 0, 60);
-    }
-
-    private void setTextPaint(float distance) {
-        distance = Math.abs(distance);
-        int color = (int) (255 - (distance * 62.4 / viewHeight));
-        textPaint.setColor(color * 0x1000000);
-        float textSize = (float) (0.6 * itemHeight - distance / 10);
-        textPaint.setTextSize(textSize);
-    }
-
-    public int getCurrentIndex() {
-        return currentItemIndex;
-    }
-
-    public String getCurrentText() {
-        return data.get(currentItemIndex);
-    }
-
-    public void addData(String text) {
-        if ( null == data)
-            data = new ArrayList<>();
-        data.add(text);
+        int lastItem = getSelectedItemIndex();
+        //计算这次的【合法的】的index
+        int tempSelectedItem = getSelectedItemIndex() + changedItemNumber;
+        if (tempSelectedItem < 0)
+            tempSelectedItem = 0;
+        if (tempSelectedItem >= data.size())
+            tempSelectedItem = data.size() - 1;
+        this.selectedItemIndex = tempSelectedItem;
+        //减去相应的scrollY值（为了可以上滑和下滑超出）
+        scrollY -= itemHeight * (selectedItemIndex - lastItem);
         invalidate();
+        if (lastItem != tempSelectedItem)
+            noticeListener();
     }
 
-    public void setData(List<String> data) {
+    private void setTextPaint(Paint paint, float midY) {
+        paint.setTextSize(maxTextSize - (maxTextSize - minTextSize) * Math.abs(viewHeight / 2 - midY) / (viewHeight / 2) );
+    }
+
+    public int getSelectedItemIndex() {
+        return selectedItemIndex;
+    }
+
+
+    /*
+     * 这个是专门给外部类调用设置用的，类内不应该调用。 也是因为类内不用主动
+     */
+    public void setDataWithSelectedItemIndex(List<String> data, int selectedItemIndex) {
         this.data = data;
+        setSelectedItemIndex(selectedItemIndex);
+    }
+
+    /*
+     * 这个是专门给外部类调用设置用的，类内不应该调用。 也是因为类内不用主动
+     */
+    public void setSelectedItemIndex(int selectedItemIndex) {
+        //外部自己负责处理这个index是否合法
+        this.selectedItemIndex = selectedItemIndex;
+        //既然外部设置index，就不要这个偏移量了
+        this.scrollY = 0;
+        invalidate();
+        noticeListener();
+    }
+
+    private void resilienceToCenter(float distance) {
+        scrollY -= distance;
         invalidate();
     }
+
+    private void noticeListener() {
+        if (null != wheelViewSelectedListener)
+            wheelViewSelectedListener.wheelViewSelectedChanged(this, data, selectedItemIndex);
+    }
+
+    public void setWheelViewSelectedListener(IWheelViewSelectedListener wheelViewSelectedListener) {
+        this.wheelViewSelectedListener = wheelViewSelectedListener;
+    }
+
+    private static class MyWheelViewHandler extends Handler {
+
+        static final int RESILIENCE = 1;
+
+        private WeakReference<MyWheelView> myWheelViewWeakReference;
+
+        private MyWheelViewHandler(MyWheelView myWheelView) {
+            myWheelViewWeakReference = new WeakReference<>(myWheelView);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+
+            MyWheelView myWheelView;
+            Message message;
+            Bundle bundle;
+            int leftTimes;
+            switch (msg.what) {
+                case RESILIENCE:
+                    bundle = msg.getData();
+                    leftTimes = bundle.getInt(RESILIENCE_LEFT_TIMES, 0);
+                    if (leftTimes > 0) {
+
+                        myWheelView = myWheelViewWeakReference.get();
+                        if (null != myWheelView) {
+
+                            myWheelView.resilienceToCenter(bundle.getFloat(RESILIENCE_DISTANCE_OF_ONCE, 0));
+
+                            if (leftTimes > 1) {
+                                bundle.putInt(RESILIENCE_LEFT_TIMES, leftTimes - 1);
+                                message = new Message();
+                                message.what = RESILIENCE;
+                                message.setData(bundle);
+                                this.sendMessageDelayed(message, RESILIENCE_TIME_INTERVAL);
+                            }
+                        }
+                    }
+                    break;
+            }
+        }
+    }
+
 }

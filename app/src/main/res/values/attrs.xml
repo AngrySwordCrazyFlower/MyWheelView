@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="MyWheelView">
+        <attr name="item_number" format="integer" />
+        <attr name="selected_line_color" format="color" />
+        <attr name="selected_background_color" format="color" />
+        <attr name="normal_text_color" format="color" />
+        <attr name="selected_text_color" format="color" />
+    </declare-styleable>
+</resources>
