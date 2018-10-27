@@ -148,7 +148,6 @@ public class MyWheelView extends View {
                 paint = normalTextPaint;
 
             setTextPaint(paint, midY);
-
             canvas.drawText(text, (viewWidth - getTextWidth(paint, text)) / 2,
                     midY + getTextBaselineToCenter(paint), paint);
         }
@@ -287,22 +286,17 @@ public class MyWheelView extends View {
             switch (msg.what) {
                 case RESILIENCE:
                     bundle = msg.getData();
+                    myWheelView = myWheelViewWeakReference.get();
+                    if (null != myWheelView)
+                        myWheelView.resilienceToCenter(bundle.getFloat(RESILIENCE_DISTANCE_OF_ONCE, 0));
+
                     leftTimes = bundle.getInt(RESILIENCE_LEFT_TIMES, 0);
-                    if (leftTimes > 0) {
-
-                        myWheelView = myWheelViewWeakReference.get();
-                        if (null != myWheelView) {
-
-                            myWheelView.resilienceToCenter(bundle.getFloat(RESILIENCE_DISTANCE_OF_ONCE, 0));
-
-                            if (leftTimes > 1) {
-                                bundle.putInt(RESILIENCE_LEFT_TIMES, leftTimes - 1);
-                                message = new Message();
-                                message.what = RESILIENCE;
-                                message.setData(bundle);
-                                this.sendMessageDelayed(message, RESILIENCE_TIME_INTERVAL);
-                            }
-                        }
+                    if (leftTimes > 1) {//如果还要重绘，发送重绘的消息，这里重复使用了bundle
+                        bundle.putInt(RESILIENCE_LEFT_TIMES, leftTimes - 1);
+                        message = new Message();
+                        message.what = RESILIENCE;
+                        message.setData(bundle);
+                        this.sendMessageDelayed(message, RESILIENCE_TIME_INTERVAL);
                     }
                     break;
             }
